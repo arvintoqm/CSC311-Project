@@ -51,58 +51,20 @@ def neg_log_likelihood(data, theta, beta):
     return -log_lklihood
 
 
-def update_theta_beta(data, lr, theta, beta):
-    """Update theta and beta using gradient descent.
+def update_theta_beta(data, lr, theta, beta, w_theta, w_beta, lambda_theta, lambda_beta):
+    """Perform gradient descent step with weighted regularization.
 
-    You are using alternating gradient descent. Your update should look:
-    for i in iterations ...
-        theta <- new_theta
-        beta <- new_beta
-
-    You may optionally replace the function arguments to receive a matrix.
-
-    :param data: A dictionary {user_id: list, question_id: list,
-    is_correct: list}
-    :param lr: float
-    :param theta: Vector
-    :param beta: Vector
-    :return: tuple of vectors
+    :param data: A dictionary {user_id: list, question_id: list, is_correct: list}
+    :param lr: Learning rate
+    :param theta: Vector of user abilities
+    :param beta: Vector of question difficulties
+    :param w_theta: Weights for regularization of theta
+    :param w_beta: Weights for regularization of beta
+    :return: Updated theta, beta
     """
-    #####################################################################
-    # TODO:                                                             #
-    # Implement the function as described in the docstring.             #
-    #####################################################################
-
-    #for i in range(len(question_id)):
-    #    question = question_id[i]
-    #    user = user_id[i]
-    #    c_ij = is_correct[i]
-
-    #    theta_i = theta[user]
-    #    beta_j = beta[question]
-
-    #    theta[user] = theta_i - lr * (c_ij - sigmoid(theta_i - beta_j))
-    #    beta[question] = beta_j -lr * (sigmoid(theta_i - beta_j) - c_ij)
-
-    #theta_grad = np.zeros_like(theta)
-    #for i in range(len(question_id)):
-    #    question = question_id[i]
-    #    user = user_id[i]
-    #    c_ij = is_correct[i]
-
-    #    theta_grad[user] = theta[user] - (c_ij - sigmoid(theta[user] - beta[question]))
-
-    #theta += lr * theta_grad
-
-    #beta_grad = np.zeros_like(beta)
-    #for i in range(len(question_id)):
-    #    question = question_id[i]
-    #    user = user_id[i]
-    #    c_ij = is_correct[i]
-
-    #    beta_grad[question] = -beta[question] + (c_ij - sigmoid(theta[user] - beta[question]))
-
-    #beta += lr * beta_grad
+    # Initialize gradients
+    grad_theta = np.zeros_like(theta)
+    grad_beta = np.zeros_like(beta)
 
     user_id = np.array(data['user_id'])
     question_id = np.array(data['question_id'])
@@ -110,53 +72,45 @@ def update_theta_beta(data, lr, theta, beta):
 
     prob_correct = sigmoid(theta[user_id] - beta[question_id])
 
-    theta_grad = np.zeros_like(theta)
-    beta_grad = np.zeros_like(beta)
-
-    #for i in range(len(question_id)):
-    #    q = question_id[i]
-    #    u = user_id[i]
-    #    c_ij = is_correct[i]
-
-    #    theta_grad[u] += (c_ij - prob_correct[u])
-
+    # Loop through the data to compute gradients
     for i in range(len(question_id)):
         q = question_id[i]
         u = user_id[i]
         c_ij = is_correct[i]
 
-        theta_grad[u] += (c_ij - prob_correct[u])
-        beta_grad[q] += -(c_ij - prob_correct[u])
+        grad_theta[u] += (c_ij - prob_correct[u])
+        grad_beta[q] += -(c_ij - prob_correct[u])
 
-    theta += lr * theta_grad
-    beta += lr * beta_grad
+    # Add regularization terms
+    grad_theta -= lambda_theta * w_theta * theta  # Regularization for theta
+    grad_beta -= lambda_beta * w_beta * beta     # Regularization for beta
 
-    #####################################################################
-    #                       END OF YOUR CODE                            #
-    #####################################################################
+    # Update parameters using gradient descent
+    theta += lr * grad_theta
+    beta += lr * grad_beta
+
     return theta, beta
 
 
-def irt(data, val_data, lr, iterations):
-    """Train IRT model.
 
-    You may optionally replace the function arguments to receive a matrix.
-
-    :param data: A dictionary {user_id: list, question_id: list,
-    is_correct: list}
-    :param val_data: A dictionary {user_id: list, question_id: list,
-    is_correct: list}
-    :param lr: float
-    :param iterations: int
-    :return: (theta, beta, val_acc_lst)
+def irt(data, val_data, lr, iterations, w_theta, w_beta, lambda_theta, lambda_beta):
     """
-    # TODO: Initialize theta and beta.
+    Train IRT model with weighted regularization.
+
+    :param data: A dictionary {user_id: list, question_id: list, is_correct: list}
+    :param val_data: A dictionary {user_id: list, question_id: list, is_correct: list}
+    :param lr: Learning rate (float)
+    :param iterations: Number of iterations (int)
+    :param w_theta: Regularization weights for theta (1D numpy array)
+    :param w_beta: Regularization weights for beta (1D numpy array)
+    :param lambda_theta: Overall regularization weight for theta (float)
+    :param lambda_beta: Overall regularization weight for beta (float)
+    :return: theta, beta, val_acc_lst
+    """
     question_id = data['question_id']
     user_id = data['user_id']
-    #theta = np.zeros(len(set(user_id)))
-    #beta = np.zeros(len(set(question_id)))
-    theta = np.zeros(max(user_id)+1)
-    beta = np.zeros(max(question_id)+1)
+    theta = np.zeros(max(user_id) + 1)
+    beta = np.zeros(max(question_id) + 1)
 
     val_acc_lst = []
     train_llk_lst = []
@@ -175,9 +129,8 @@ def irt(data, val_data, lr, iterations):
         val_acc_lst.append(valid_score)
 
         print("NLLK: {} \t Test Score: {} \t Valid Score: {}".format(neg_lld, test_score, valid_score))
-        theta, beta = update_theta_beta(data, lr, theta, beta)
+        theta, beta = update_theta_beta(data, lr, theta, beta, w_theta, w_beta, lambda_theta, lambda_beta)
 
-    # TODO: You may change the return values to achieve what you want.
     return theta, beta, val_acc_lst, train_llk_lst, val_llk_lst
 
 
@@ -202,7 +155,7 @@ def evaluate(data, theta, beta):
 def main():
     train_data = load_train_csv("./data")
     # You may optionally use the sparse matrix.
-    # sparse_matrix = load_train_sparse("./data")
+    sparse_matrix = load_train_sparse("./data")
     val_data = load_valid_csv("./data")
     test_data = load_public_test_csv("./data")
 
@@ -214,18 +167,20 @@ def main():
     learning_rate = 0.0001
     iterations = 60
 
-    theta, beta, val_acc_lst, train_llk_lst, val_llk_lst = irt(train_data, val_data, learning_rate, iterations)
+    N, M = sparse_matrix.shape
 
-    import matplotlib.pyplot as plt
-    plt.figure(figsize=(8, 6))
-    plt.plot(range(1, iterations + 1), train_llk_lst, label="Training Negative Log-Likelihood", marker='o')
-    plt.plot(range(1, iterations + 1), val_llk_lst, label="Validation Negative Log-Likelihood", marker='o', color="orange")
-    plt.xlabel("Iteration")
-    plt.ylabel("Negative Log-Likelihood")
-    plt.title("Training and Validation Negative Log-Likelihoods vs. Iterations")
-    plt.legend()
-    plt.grid()
-    plt.show()
+    # Uniform weights as a starting point
+    w_theta = np.random.randn(N) * 0.01
+    w_beta = np.random.randn(M) * 0.01
+
+    # Apply custom weights, if needed
+    #w_theta[0:sparse_matrix.shape[0]] = 1  # Penalize first 10 users less
+    # w_beta[100:300] = 2.0  # Penalize questions 250-300 more
+
+    lambda_theta = 0.001
+    lambda_beta = 0.001
+
+    theta, beta, val_acc_lst, train_llk_lst, val_llk_lst = irt(train_data, val_data, learning_rate, iterations, w_theta, w_beta, lambda_theta, lambda_beta)
 
     valid_accuracy = evaluate(val_data, theta, beta)
     print(f"Final Test Accuracy: {valid_accuracy:.4f}")
@@ -270,21 +225,10 @@ def main():
     #prob_j2 = sigmoid(theta - beta_j2)
     #prob_j3 = sigmoid(theta - beta_j3)
 
-    plt.figure(figsize=(10, 6))
     #plt.scatter(theta, prob_j1, alpha=0.6, label=f"Question {selected_questions[0]} (β={beta_j1:.2f})", color='blue')
     #plt.scatter(theta, prob_j2, alpha=0.6, label=f"Question {beta[selected_questions[1]]} (β={beta_j2:.2f})", color='orange')
     #plt.scatter(theta, prob_j3, alpha=0.6, label=f"Question {selected_questions[2]} (β={beta_j3:.2f})", color='green')
 
-    for q in selected_questions:
-        prob_correct = sigmoid(theta - beta[q])
-        plt.plot(theta, prob_correct, label=f"Question {q}", marker='o', linestyle='None', alpha = 0.6)
-
-    plt.xlabel("θ (Student Ability)")
-    plt.ylabel("Probability of Correct Response")
-    plt.title("Probability of Correct Response vs. Student Ability")
-    plt.legend()
-    plt.grid()
-    plt.show()
     #####################################################################
     #                       END OF YOUR CODE                            #
     #####################################################################
